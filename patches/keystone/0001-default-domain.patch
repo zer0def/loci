@@ -1,0 +1,13 @@
+diff --git a/keystone/cmd/bootstrap.py b/keystone/cmd/bootstrap.py
+index bf9d960cf..75fa72cf9 100644
+--- a/keystone/cmd/bootstrap.py
++++ b/keystone/cmd/bootstrap.py
+@@ -74,7 +74,7 @@ class Bootstrapper(object):
+     def _bootstrap_default_domain(self):
+         default_domain = {
+             'id': CONF.identity.default_domain_id,
+-            'name': 'Default',
++            'name': 'default',
+             'enabled': True,
+             'description': 'The default domain'
+         }

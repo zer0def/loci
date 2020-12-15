@@ -44,3 +44,4 @@ virtualenv --seed pip --download /var/lib/openstack
 # Deactivate the old bootstrap virtualenv and switch to the new one
 deactivate
 source /var/lib/openstack/bin/activate
+pip install --upgrade pip

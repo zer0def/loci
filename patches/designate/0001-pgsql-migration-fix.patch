@@ -1,0 +1,20 @@
+diff --git a/designate/storage/impl_sqlalchemy/migrate_repo/versions/101_support_naptr_records.py b/designate/storage/impl_sqlalchemy/migrate_repo/versions/101_support_naptr_records.py
+index 7cd91ea7..3dab7ece 100644
+--- a/designate/storage/impl_sqlalchemy/migrate_repo/versions/101_support_naptr_records.py
++++ b/designate/storage/impl_sqlalchemy/migrate_repo/versions/101_support_naptr_records.py
+@@ -26,4 +26,4 @@ def upgrade(migrate_engine):
+                     'PTR', 'SSHFP', 'SOA', 'NAPTR']
+ 
+     records_table = Table('recordsets', meta, autoload=True)
+-    records_table.columns.type.alter(name='type', type=Enum(*RECORD_TYPES))
++    records_table.columns.type.alter(type=Enum(name='record_types', *RECORD_TYPES))
+diff --git a/designate/storage/impl_sqlalchemy/migrate_repo/versions/102_support_caa_records.py b/designate/storage/impl_sqlalchemy/migrate_repo/versions/102_support_caa_records.py
+index 32ec4fcd..63497482 100644
+--- a/designate/storage/impl_sqlalchemy/migrate_repo/versions/102_support_caa_records.py
++++ b/designate/storage/impl_sqlalchemy/migrate_repo/versions/102_support_caa_records.py
+@@ -26,4 +26,4 @@ def upgrade(migrate_engine):
+                     'PTR', 'SSHFP', 'SOA', 'NAPTR', 'CAA']
+ 
+     records_table = Table('recordsets', meta, autoload=True)
+-    records_table.columns.type.alter(name='type', type=Enum(*RECORD_TYPES))
++    records_table.columns.type.alter(type=Enum(name='record_types', *RECORD_TYPES))

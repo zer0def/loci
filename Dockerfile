@@ -4,7 +4,7 @@ FROM ${FROM}
 ENV PATH=/var/lib/openstack/bin:$PATH
 ARG PROJECT
 ARG WHEELS=loci/requirements:master-ubuntu
-ARG PROJECT_REPO=https://opendev.org/openstack/${PROJECT}
+ARG PROJECT_REPO=https://github.com/openstack/${PROJECT}
 ARG PROJECT_REF=master
 ARG PROJECT_RELEASE=master
 ARG DISTRO
@@ -29,7 +29,6 @@ ARG NOVNC_REF=v1.0.0
 ARG SPICE_REPO=https://gitlab.freedesktop.org/spice/spice-html5.git
 ARG SPICE_REF=spice-html5-0.1.6
 
-COPY scripts /opt/loci/scripts
-ADD bindep.txt pydep.txt $EXTRA_BINDEP $EXTRA_PYDEP /opt/loci/
+ADD bindep.txt pydep.txt patches scripts $EXTRA_BINDEP $EXTRA_PYDEP /opt/loci/
 
 RUN /opt/loci/scripts/install.sh
