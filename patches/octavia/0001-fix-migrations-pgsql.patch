@@ -1,0 +1,134 @@
+diff --git a/octavia/db/migration/alembic_migrations/versions/392fb85b4419_add_primary_key_to_spares_pool.py b/octavia/db/migration/alembic_migrations/versions/392fb85b4419_add_primary_key_to_spares_pool.py
+index cdfb2f11..cbd6e84d 100644
+--- a/octavia/db/migration/alembic_migrations/versions/392fb85b4419_add_primary_key_to_spares_pool.py
++++ b/octavia/db/migration/alembic_migrations/versions/392fb85b4419_add_primary_key_to_spares_pool.py
+@@ -34,8 +34,7 @@ LOG = logging.getLogger(__name__)
+ 
+ 
+ def upgrade():
+-    bind = op.get_bind()
+-    inspector = reflection.Inspector.from_engine(bind.engine)
++    inspector = reflection.Inspector(op.get_bind())
+     pk = inspector.get_pk_constraint('spares_pool')
+     if not pk['constrained_columns']:
+         op.create_primary_key(
+diff --git a/octavia/db/migration/alembic_migrations/versions/9bf4d21caaea_adding_amphora_id_to_listener_.py b/octavia/db/migration/alembic_migrations/versions/9bf4d21caaea_adding_amphora_id_to_listener_.py
+index 8e121fdd..8caf0efd 100644
+--- a/octavia/db/migration/alembic_migrations/versions/9bf4d21caaea_adding_amphora_id_to_listener_.py
++++ b/octavia/db/migration/alembic_migrations/versions/9bf4d21caaea_adding_amphora_id_to_listener_.py
+@@ -20,6 +20,8 @@ Create Date: 2016-05-02 07:50:12.888263
+ 
+ """
+ from alembic import op
++from sqlalchemy.engine import reflection
++
+ import sqlalchemy as sa
+ 
+ # revision identifiers, used by Alembic.
+@@ -37,8 +39,10 @@ def upgrade():
+     op.drop_constraint('fk_listener_statistics_listener_id',
+                        'listener_statistics',
+                        type_='foreignkey')
+-    op.drop_constraint('PRIMARY',
+-                       'listener_statistics',
++
++    inspector = reflection.Inspector(op.get_bind())
++    pk = inspector.get_pk_constraint('listener_statistics')
++    op.drop_constraint(pk.get('name') or 'PRIMARY', 'listener_statistics',
+                        type_='primary')
+ 
+     op.create_primary_key('pk_listener_statistics', 'listener_statistics',
+diff --git a/octavia/db/migration/alembic_migrations/versions/a5762a99609a_add_protocol_in_listener_keys.py b/octavia/db/migration/alembic_migrations/versions/a5762a99609a_add_protocol_in_listener_keys.py
+index c888de61..0686d452 100644
+--- a/octavia/db/migration/alembic_migrations/versions/a5762a99609a_add_protocol_in_listener_keys.py
++++ b/octavia/db/migration/alembic_migrations/versions/a5762a99609a_add_protocol_in_listener_keys.py
+@@ -28,8 +28,15 @@ down_revision = '392fb85b4419'
+ 
+ 
+ def upgrade():
+-    op.execute("ALTER TABLE `listener` "
+-               "DROP INDEX `uq_listener_load_balancer_id_protocol_port`, "
+-               "ADD UNIQUE KEY "
+-               "`uq_listener_load_balancer_id_protocol_port` "
+-               "(`load_balancer_id`, `protocol`, `protocol_port`)")
++    op.drop_constraint('fk_listener_load_balancer_id', 'listener',
++                       type_='foreignkey')
++    op.drop_constraint('uq_listener_load_balancer_id_protocol_port',
++                       'listener',
++                       type_='unique')
++    op.create_index('uq_listener_load_balancer_id_protocol_port',
++                    'listener',
++                    ['load_balancer_id', 'protocol', 'protocol_port'],
++                    unique=True)
++    op.create_foreign_key('fk_listener_load_balancer_id',
++                          'listener', 'load_balancer',
++                          ['load_balancer_id'], ['id'])
+diff --git a/octavia/db/migration/alembic_migrations/versions/e37941b010db_add_lb_flavor_constraint.py b/octavia/db/migration/alembic_migrations/versions/e37941b010db_add_lb_flavor_constraint.py
+index 436254e1..efc50cda 100644
+--- a/octavia/db/migration/alembic_migrations/versions/e37941b010db_add_lb_flavor_constraint.py
++++ b/octavia/db/migration/alembic_migrations/versions/e37941b010db_add_lb_flavor_constraint.py
+@@ -68,11 +68,22 @@ def upgrade():
+     # Make sure any existing load balancers with invalid flavor_id
+     # map to a valid flavor.
+     # Note: constant is not used here to not trigger security tool errors.
+-    op.execute("UPDATE load_balancer LEFT JOIN flavor ON "
+-               "load_balancer.flavor_id = flavor.id SET "
+-               "load_balancer.flavor_id = "
+-               "'00000000-0000-0000-0000-000000000000' WHERE "
+-               "flavor.id IS NULL and load_balancer.flavor_id IS NOT NULL")
++    load_balancers = sql.table(u'load_balancer',
++                               sa.Column(u'id', sa.String(36)),
++                               sa.Column(u'flavor_id', sa.String(36)))
++    flavors = sql.table(u'flavor', sa.Column(u'id', sa.String(36)))
++
++    lb_flavor_join = load_balancers.outerjoin(
++        flavors, load_balancers.c.flavor_id == flavors.c.id)
++
++    invalid_lb_flavor_sq = sa.select(
++        [load_balancers.c.flavor_id.label('flavor_id')]).select_from(
++            lb_flavor_join).where(flavors.c.id == None).where(  # noqa: E711
++            load_balancers.c.flavor_id != None).alias('inv_flvr_lbs')
++
++    op.execute(load_balancers.update().where(load_balancers.c.flavor_id.in_(
++        sa.select(['*']).select_from(invalid_lb_flavor_sq))).values({
++            'flavor_id': constants.NIL_UUID}))
+ 
+     op.create_foreign_key('fk_loadbalancer_flavor_id', 'load_balancer',
+                           'flavor', ['flavor_id'], ['id'])
+diff --git a/octavia/db/migration/alembic_migrations/versions/fac584114642_.py b/octavia/db/migration/alembic_migrations/versions/fac584114642_.py
+index fa5d3894..904cc05f 100644
+--- a/octavia/db/migration/alembic_migrations/versions/fac584114642_.py
++++ b/octavia/db/migration/alembic_migrations/versions/fac584114642_.py
+@@ -24,6 +24,8 @@ Create Date: 2017-02-07 20:47:52.405865
+ 
+ from alembic import op
+ import sqlalchemy as sa
++from sqlalchemy.engine import reflection
++from sqlalchemy import sql
+ 
+ # revision identifiers, used by Alembic.
+ revision = 'fac584114642'
+@@ -41,12 +43,19 @@ def upgrade():
+                        'health_monitor',
+                        type_='foreignkey',)
+ 
+-    op.execute("UPDATE health_monitor SET id = pool_id")
++    health_monitors = sql.table('health_monitor',
++                                sa.Column('id', sa.String(36)),
++                                sa.Column('pool_id', sa.String(36)))
++    op.execute(health_monitors.update().values(id=health_monitors.c.pool_id))
+ 
+-    op.execute("ALTER TABLE health_monitor MODIFY id varchar(36) NOT NULL")
++    op.alter_column('health_monitor', 'id',
++                    existing_type=sa.String(36), nullable=False)
+ 
+-    op.execute("ALTER TABLE health_monitor DROP PRIMARY KEY,"
+-               "ADD PRIMARY KEY(id);")
++    inspector = reflection.Inspector(op.get_bind())
++    pk = inspector.get_pk_constraint('health_monitor')
++    op.drop_constraint(pk.get('name') or 'PRIMARY', 'health_monitor',
++                       type_='primary')
++    op.create_primary_key('pk_health_monitor', 'health_monitor', ['id'])
+ 
+     op.create_foreign_key('fk_health_monitor_pool_id', 'health_monitor',
+                           'pool', ['pool_id'], ['id'])
