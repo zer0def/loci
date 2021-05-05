@@ -1,0 +1,106 @@
+diff --git a/designate/storage/impl_sqlalchemy/migrate_repo/versions/080_domain_to_zone_rename.py b/designate/storage/impl_sqlalchemy/migrate_repo/versions/080_domain_to_zone_rename.py
+index afe7b332..3818403b 100644
+--- a/designate/storage/impl_sqlalchemy/migrate_repo/versions/080_domain_to_zone_rename.py
++++ b/designate/storage/impl_sqlalchemy/migrate_repo/versions/080_domain_to_zone_rename.py
+@@ -16,7 +16,7 @@
+ #
+ # See https://blueprints.launchpad.net/nova/+spec/backportable-db-migrations
+ # http://lists.openstack.org/pipermail/openstack-dev/2013-March/006827.html
+-from sqlalchemy.schema import MetaData, Table, Index
++from sqlalchemy.schema import MetaData, Table
+ from migrate.changeset.constraint import UniqueConstraint, \
+     ForeignKeyConstraint, PathNotFoundError
+ 
+@@ -31,54 +31,6 @@ from migrate.changeset.constraint import UniqueConstraint, \
+ meta = MetaData()
+ 
+ 
+-def index_exists(index):
+-    table = index[1]._get_table()
+-    cols = sorted([str(x).split('.')[1] for x in index[1:]])
+-
+-    for idx in table.indexes:
+-        if sorted(idx.columns.keys()) == cols:
+-            return True
+-    return False
+-
+-
+-def drop_index(index):
+-    if index_exists(index):
+-        index = Index(*index)
+-        index.drop()
+-
+-
+-def drop_foreign_key(fk_def):
+-
+-    table = fk_def[0]._get_table()
+-
+-    col = fk_def[0]
+-    ref_col = fk_def[1]
+-
+-    # Use .copy() to avoid the set changing during the for operation
+-    for fk in table.foreign_keys.copy():
+-        # Check if the fk is the one we want
+-        if fk.column == col and fk.parent == ref_col:
+-
+-            fkc = ForeignKeyConstraint([fk.column], [fk.parent],
+-                                       name=fk.constraint.name)
+-            fkc.drop()
+-        # Check if the fk is the one we want (sometimes it seems the parent
+-        # / col is switched
+-        if fk.parent == col and fk.column == ref_col:
+-
+-            fkc = ForeignKeyConstraint([fk.parent], [fk.column],
+-                                       name=fk.constraint.name)
+-            fkc.drop()
+-
+-
+-def drop_unique_constraint(uc_def):
+-    uc = UniqueConstraint(*uc_def[2], table=uc_def[0], name=uc_def[1])
+-    try:
+-        uc.drop()
+-    except PathNotFoundError:
+-        pass
+-
+-
+ def upgrade(migrate_engine):
+     meta.bind = migrate_engine
+ 
+@@ -92,20 +44,23 @@ def upgrade(migrate_engine):
+     zt_table = Table('zone_tasks', meta, autoload=True)
+ 
+     # Remove the affected FKs
+-    # Define FKs
+-    fks = [
+-        [domains_table.c.id, domains_table.c.parent_domain_id],
+-        [domain_attrib_table.c.domain_id,
+-         domains_table.c.id],
+-        [recordsets_table.c.domain_id, domains_table.c.id],
+-        [records_table.c.domain_id, domains_table.c.id],
+-        [ztr_table.c.domain_id, domains_table.c.id],
+-        [zta_table.c.domain_id, domains_table.c.id]
+-    ]
+-
+-    # Drop FKs
+-    for fk in fks:
+-        drop_foreign_key(fk)
++    for table, column, referent in [
++        (domains_table, domains_table.c.id, domains_table.c.parent_domain_id),
++        (domain_attrib_table, domain_attrib_table.c.domain_id,
++         domains_table.c.id),
++        (recordsets_table, recordsets_table.c.domain_id, domains_table.c.id),
++        (records_table, records_table.c.domain_id, domains_table.c.id),
++        (ztr_table, ztr_table.c.domain_id, domains_table.c.id),
++        (zta_table, zta_table.c.domain_id, domains_table.c.id)
++    ]:
++        for fk in table.foreign_keys.copy():
++            if fk.column == column and fk.parent == referent:
++                ForeignKeyConstraint([fk.column], [fk.parent],
++                                     name=fk.constraint.name).drop()
++
++            if fk.parent == column and fk.column == referent:
++                ForeignKeyConstraint([fk.parent], [fk.column],
++                                     name=fk.constraint.name).drop()
+ 
+     # Change the table structures
+ 

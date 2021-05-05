@@ -1,0 +1,17 @@
+diff --git a/barbican/model/migration/alembic_migrations/versions/0f8c192a061f_add_secret_consumers.py b/barbican/model/migration/alembic_migrations/versions/0f8c192a061f_add_secret_consumers.py
+index 1a5b7bb2..7f43d6b7 100644
+--- a/barbican/model/migration/alembic_migrations/versions/0f8c192a061f_add_secret_consumers.py
++++ b/barbican/model/migration/alembic_migrations/versions/0f8c192a061f_add_secret_consumers.py
+@@ -30,11 +30,8 @@ import sqlalchemy as sa
+ 
+ 
+ def upgrade():
+-    ctx = op.get_context()
+     con = op.get_bind()
+-    table_exists = ctx.dialect.has_table(con.engine,
+-                                         "secret_consumer_metadata")
+-    if not table_exists:
++    if not sa.inspect(con.engine).has_table("secret_consumer_metadata"):
+         op.create_table(
+             "secret_consumer_metadata",
+             # ModelBase
